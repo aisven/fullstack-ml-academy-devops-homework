@@ -3,3 +3,5 @@
 .DS_Store
 target
 target/*
+__pycache__
+.pyc
