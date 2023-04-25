@@ -15,7 +15,7 @@
   "python.linting.pylintEnabled": false,
   "python.linting.flake8Enabled": true,
   "python.linting.banditEnabled": false,
-  "python.formatting.provider": "autopep8",
+  "python.formatting.provider": "black",
   "python.analysis.extraPaths": ["${workspaceFolder}/src"],
   "terminal.integrated.profiles.windows": {
     "PowerShell": {
