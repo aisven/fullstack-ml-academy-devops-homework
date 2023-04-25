@@ -13,11 +13,16 @@ from sklearn.model_selection import train_test_split
 
 # Normalization and Standardization
 # from sklearn.preprocessing import MinMaxScaler
-# from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import RobustScaler
+from sklearn.preprocessing import StandardScaler
 
-# Decision Tree Classifier
-from sklearn import tree
+# from sklearn.preprocessing import RobustScaler
+
+# Regressor
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import VotingRegressor
 
 # Plots
 from matplotlib import pyplot as plt
@@ -53,7 +58,7 @@ def load_dataset_with_regression_target(
 
     # read the CSV file
     # using separator character semicolon
-    X_original_y_pd = pd.read_csv(path, sep=sep, skipinitialspace=True)
+    X_original_y_pd = pd.read_csv(path, sep=sep, skipinitialspace=True).astype(float)
 
     # make column names pythonic
     # so that they can be used in code where applicable
@@ -64,10 +69,12 @@ def load_dataset_with_regression_target(
 
     X_original_y_pd.rename(column_name_mapping, axis=1, inplace=True)
 
-    X_y_np = X_original_y_pd.to_numpy()
+    print(f"X_original_y_pd=\n{X_original_y_pd}")
+
+    X_original_y_np = X_original_y_pd.to_numpy()
 
     # number of instances often referred to as just n
-    n_samples = X_y_np.shape[0]
+    n_samples = X_original_y_np.shape[0]
     print(f"n_samples={n_samples}")
 
     # number of target variables
@@ -75,33 +82,31 @@ def load_dataset_with_regression_target(
     print(f"n_targets={n_targets}")
 
     # number of features
-    n_features = X_y_np.shape[1] - n_targets
+    n_features = X_original_y_np.shape[1] - n_targets
     print(f"n_features={n_features}")
 
-    assert X_y_np.shape == (n_samples, n_features + n_targets)
-    assert X_y_np.shape == (n_samples, n_features + n_targets)
+    assert X_original_y_np.shape == (n_samples, n_features + n_targets)
 
     X_original_pd = X_original_y_pd.copy().drop(target_column_name, axis=1)
     X_original_np = X_original_pd.to_numpy()
     assert X_original_np.shape == (n_samples, n_features)
 
-    y_pd = X_original_y_pd[target_column_name].copy()
-    y_np = y_pd.to_numpy()
-    assert y_np.shape == (n_samples,)
+    y_original_pd = X_original_y_pd[target_column_name].copy()
+    y_original_np = y_original_pd.to_numpy()
+    assert y_original_np.shape == (n_samples,)
 
     X_original = torch.from_numpy(X_original_np)
-    y = torch.from_numpy(y_np)
+    y_original = torch.from_numpy(y_original_np)
 
-    # we need the target data to be of data type long for the loss function to work
-    if y.dtype != torch.int64:
-        y = y.long()
+    print(X_original.dtype)
+    print(y_original.dtype)
+
     assert X_original.dtype == torch.float64
-    assert y.dtype == torch.int64
+    assert y_original.dtype == torch.float64
 
     # also create a tensor that contains the 4 features and the target
-    X_original_y_np = X_original_y_pd.to_numpy()
-    y_unsqueezed = y.unsqueeze(1)
-    X_original_y = torch.cat((X_original, y_unsqueezed), 1)
+    y_original_unsqueezed = y_original.unsqueeze(1)
+    X_original_y = torch.cat((X_original, y_original_unsqueezed), 1)
     assert X_original_y.shape == (n_samples, n_features + n_targets)
     assert X_original_y.dtype == torch.float64
 
@@ -109,23 +114,40 @@ def load_dataset_with_regression_target(
         X_original_pd,
         X_original_np,
         X_original,
-        y_pd,
-        y_np,
-        y,
+        y_original_pd,
+        y_original_np,
+        y_original,
         X_original_y_pd,
         X_original_y_np,
         X_original_y,
     )
 
 
-def standardize_dataset(X_original_np):
-    scaler = RobustScaler(unit_variance=True)
-    X_np = scaler.fit_transform(X_original_np)
+def standardize_dataset(X_original_np, y_original_np, target_column_name, column_name_mapping):
+    scaler_X = StandardScaler()
+    scaler_y = StandardScaler()
+    X_np = scaler_X.fit_transform(X_original_np)
+    y_original_tmp_np = y_original_np.reshape(-1, 1)
+    y_tmp_np = scaler_y.fit_transform(y_original_tmp_np)
+    y_np = y_tmp_np.reshape(len(y_tmp_np))
 
-    return (scaler, X_np)
+    X_column_names = list(column_name_mapping.values())
+    X_column_names.remove(target_column_name)
+    # print(X_column_names)
+
+    X_pd = pd.DataFrame(X_np, columns=X_column_names)
+    y_pd = pd.DataFrame(y_np, columns=[target_column_name])
+
+    # print(f"X_pd=\n{X_pd}")
+    # print(f"y_pd=\n{y_pd}")
+
+    X = torch.from_numpy(X_np)
+    y = torch.from_numpy(y_np)
+
+    return (X_pd, X_np, X, scaler_X, y_pd, y_np, y, scaler_y)
 
 
-def split_dataset(X, y, n_targets):
+def split_dataset_with_regression_target(X, y, n_targets):
     n_samples = X.shape[0]
     n_features = X.shape[1]
 
@@ -161,13 +183,13 @@ def split_dataset(X, y, n_targets):
     assert X_test.dtype == torch.float64
 
     assert (n_targets == 1 and y_train.ndim == 1) or (n_targets > 1 and y_train.ndim == 2)
-    assert y_train.dtype == torch.int64
+    assert y_train.dtype == torch.float64
 
     assert (n_targets == 1 and y_val.ndim == 1) or (n_targets > 1 and y_val.ndim == 2)
-    assert y_val.dtype == torch.int64
+    assert y_val.dtype == torch.float64
 
     assert (n_targets == 1 and y_test.ndim == 1) or (n_targets > 1 and y_test.ndim == 2)
-    assert y_test.dtype == torch.int64
+    assert y_test.dtype == torch.float64
 
     X_train_np = X_train.numpy()
     y_train_np = y_train.numpy()
@@ -192,58 +214,121 @@ def split_dataset(X, y, n_targets):
     )
 
 
-def train_decision_tree_regressor(X_train_np, y_train_np, max_depth):
-    dtr = tree.DecisionTreeRegressor(random_state=42, max_depth=max_depth)
-    dtr.fit(X_train_np, y_train_np)
-    return dtr
+def explore_dataset_with_regression_target(X_y_pd, X_y_np, target_column_name):
+    # number of instances
+    print(f"n={X_y_np.shape[0]}")
+
+    # location parameters
+    print(f"mean={X_y_np.mean(axis=0)}")
+    print(f"trimmed_mean={stats.trim_mean(X_y_np.astype('float32'), proportiontocut=0.10, axis=0)}")
+    print(f"mode={stats.mode(X_y_np, keepdims=True)}")
+
+    # statistical dispersion measures
+    def range_np(a: np.ndarray) -> np.ndarray:
+        result = a.max(axis=0) - a.min(axis=0)
+        return result
+
+    print(f"range={range_np(X_y_np)}")
+    print(f"iqr={stats.iqr(X_y_np, axis=0)}")
+
+    print(f"percentile_10={np.percentile(X_y_np, 10.0, axis=0)}")
+    print(f"percentile_25={np.percentile(X_y_np, 25.0, axis=0)}")
+    print(f"median={np.percentile(X_y_np, 50.0, axis=0)}")
+    print(f"percentile_75={np.percentile(X_y_np, 75.0, axis=0)}")
+    print(f"percentile_90={np.percentile(X_y_np, 90.0, axis=0)}")
+
+    def mad_np(a: np.ndarray) -> np.ndarray:
+        result = np.mean(np.absolute(a - np.mean(a, axis=0)), axis=0)
+        return result
+
+    print(f"mad={mad_np(X_y_np)}")
+
+    print(f"std={X_y_np.std(axis=0)}")
+    print(f"var={X_y_np.var(axis=0)}")
+
+    # association measures
+    print(f"\ncorrelation_matrix=\n{np.corrcoef(X_y_np, rowvar=False).round(decimals=2)}")
+
+    # we have a look at a scatter matrix
+    pd.plotting.scatter_matrix(
+        X_y_pd,
+        c=X_y_pd[target_column_name],
+        figsize=(17, 17),
+        cmap=cm["cool"],
+        diagonal="kde",
+    )
+
+    # predictive_power_score_matrix_all_pd = pps.matrix(df_pd_all, output='df')
+    predictive_power_scores_pd = pps.predictors(X_y_pd, y=target_column_name, output="df")
+    predictive_power_scores_pd.style.background_gradient(cmap="twilight", low=0.0, high=1.0)
+    print(predictive_power_scores_pd)
+
+
+def train_regressor(X_train_np, y_train_np):
+    reg1 = GradientBoostingRegressor(random_state=42)
+    reg2 = RandomForestRegressor(random_state=42)
+    reg3 = LinearRegression()
+    reg4 = DecisionTreeRegressor(max_depth=16)
+    ereg = VotingRegressor(estimators=[("gb", reg1), ("rf", reg2), ("lr", reg3), ("dt", reg4)])
+    ereg = ereg.fit(X_train_np, y_train_np)
+
+    return ereg
 
 
 def assert_elements_are_zero_or_one(a):
     assert len(np.ma.masked_where(((a == 0) | (a == 1)).all(), a).compressed()) == 0
 
 
-def regression_accuracy_np(y_reference_np, y_pred_np):
-    assert y_reference_np.shape == y_pred_np.shape
-    y_reference_rounded_np = np.round(y_reference_np.astype(float), 2)
-    y_pred_rounded_np = np.round(y_pred_np.astype(float), 2)
-    # the following tensor will contain True for equal values and False for different values
-    comparison = y_reference_rounded_np == y_pred_rounded_np
-    # the following tensor will contain 1.0 for true positives and 0.0 for true negatives
-    comparison_float = comparison.astype(float)
-    # the mean of that tensor will thus represent the percentage of true positives, e.g. 97.5
-    comparison_mean = comparison_float.mean()
-    # we scale and round it to obtain the value in percent
-    comparison_percent = np.round(comparison_mean, decimals=2) * 100
-    # print(f"comparison={comparison}")
-    # print(f"comparison_float={comparison_float}")
-    # print(f"comparison_mean={comparison_mean}")
-    # print(f"comparison_percent={comparison_percent}")
-    assert 0.00 <= comparison_percent and comparison_percent <= 100.00
-    return comparison_percent
+def sse(y, y_hat):
+    return np.square(y - y_hat).sum()
+
+
+def mse(y, y_pred):
+    return sse(y, y_pred) / len(y)
+
+
+def rmse(y, y_pred):
+    return np.sqrt(mse(y, y_pred))
+
+
+def mae(y, y_pred):
+    return np.abs(y - y_pred).sum() / len(y)
 
 
 def main():
     n_targets = 1
+    target_column_name = "mpg"
+    columns_to_drop = []
+    column_name_mapping = {
+        "mpg": "mpg",
+        "zylinder;": "zylinder",
+        "ps": "ps",
+        "gewicht": "gewicht",
+        "beschleunigung": "beschleunigung",
+        "baujahr": "baujahr",
+    }
 
     (
         X_original_pd,
         X_original_np,
         X_original,
-        y_pd,
-        y_np,
-        y,
+        y_original_pd,
+        y_original_np,
+        y_original,
         X_original_y_pd,
         X_original_y_np,
         X_original_y,
     ) = load_dataset_with_regression_target(
         path="data/auto-mpg.csv",
         sep=";",
-        target_column_name="mpg",
-        columns_to_drop=[],
-        column_name_mapping={},
+        target_column_name=target_column_name,
+        columns_to_drop=columns_to_drop,
+        column_name_mapping=column_name_mapping,
     )
 
-    # scaler, X_np = standardize_dataset(X_original_np)
+    X_pd, X_np, X, scaler_X, y_pd, y_np, y, scaler_y = standardize_dataset(
+        X_original_np, y_original_np, target_column_name, column_name_mapping
+    )
 
     (
         X_train_np,
@@ -258,21 +343,27 @@ def main():
         X_test,
         y_test_np,
         y_test,
-    ) = split_dataset(X_original, y, n_targets)
+    ) = split_dataset_with_regression_target(X, y, n_targets)
 
-    dtr = train_decision_tree_regressor(X_train_np, y_train_np, 10)
+    # explore_dataset_with_regression_target(X_y_pd, X_y_np, target_column_name)
 
-    y_pred_test_np = dtr.predict(X_test_np)
+    regressor = train_regressor(X_train_np, y_train_np)
 
-    acc_test = regression_accuracy_np(y_test_np, y_pred_test_np)
+    y_pred_test_np = regressor.predict(X_test_np)
 
-    print(f"acc_test={acc_test}")
+    # print(y_test_np)
+    # print(y_pred_test_np)
 
-    os.mkdir("target")
-    os.mkdir("target/models")
+    current_rmse = rmse(y_test_np, y_pred_test_np)
+    print(f"current_rmse={current_rmse}")
 
-    file_to_write = open("target/models/Miles_per_Gallon_DecisionTreeRegressor.pickle", "wb")
-    pickle.dump(dtr, file_to_write)
+    current_mae = mae(y_test_np, y_pred_test_np)
+    print(f"current_mae={current_mae}")
+
+    os.makedirs("target/models", exist_ok=True)
+
+    file_to_write = open("target/models/Miles_per_Gallon_Regressor.pickle", "wb")
+    pickle.dump(regressor, file_to_write)
 
 
 if __name__ == "__main__":
