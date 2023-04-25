@@ -40,6 +40,7 @@ ptyprocess
 pure-eval
 Pygments
 pyparsing
+pytest
 python-dateutil
 pytz
 pyzmq
