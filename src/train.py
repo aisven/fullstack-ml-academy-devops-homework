@@ -295,7 +295,7 @@ def mae(y, y_pred):
     return np.abs(y - y_pred).sum() / len(y)
 
 
-def main():
+def train():
     n_targets = 1
     target_column_name = "mpg"
     columns_to_drop = []
@@ -364,6 +364,10 @@ def main():
 
     file_to_write = open("target/models/Miles_per_Gallon_Regressor.pickle", "wb")
     pickle.dump(regressor, file_to_write)
+
+
+def main():
+    train()
 
 
 if __name__ == "__main__":
