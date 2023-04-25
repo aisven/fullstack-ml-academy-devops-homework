@@ -24,3 +24,7 @@ jobs:
       - name: Test with pytest
         run: |
           pytest
+      - uses: actions/upload-artifact@v3
+        with:
+          name: Miles per Gallon Regressor
+          path: target/models/Miles_per_Gallon_Regressor.pickle
