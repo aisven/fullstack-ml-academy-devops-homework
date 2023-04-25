@@ -1,10 +1,13 @@
 import pickle
 import numpy as np
 
+from train import train
 from predict import predict
 
 
-def test_predict():
+def test_train_then_predict():
+    train()
+
     regressor = pickle.load(open("target/models/Miles_per_Gallon_Regressor.pickle", "rb"))
 
     X_np = np.asarray([5.0, 180.0, 2400.0, 8.7, 99.0])
