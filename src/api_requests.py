@@ -2,7 +2,7 @@ import requests
 
 
 def get_hello() -> requests.Response:
-    url_hello_local = "http://127.0.0.1:5000"
+    url_hello_local = "http://127.0.0.1:5000/hello"
     res = requests.get(url_hello_local)
     return res
 
