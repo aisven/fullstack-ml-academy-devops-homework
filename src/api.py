@@ -38,18 +38,24 @@ def get_predict():
     beschleunigung = request.args.get("beschleunigung", type=float)
     baujahr = request.args.get("baujahr", type=float)
 
-    X_np = np.asarray([zylinder, ps, gewicht, beschleunigung, baujahr])
-
     regressor = pickle.load(open("target/models/Miles_per_Gallon_Regressor.pickle", "rb"))
+    scaler_X = pickle.load(open("target/models/Miles_per_Gallon_Scaler_X.pickle", "rb"))
+    scaler_y = pickle.load(open("target/models/Miles_per_Gallon_Scaler_y.pickle", "rb"))
+
+    X_original_np = np.asarray([zylinder, ps, gewicht, beschleunigung, baujahr])
+
+    X_np = scaler_X.transform(X_original_np.reshape(-1, 5))
 
     y_pred_np = regressor.predict(X_np.reshape(-1, 5))
 
-    y_pred = y_pred_np.item()
+    y_pred_original_np = scaler_y.inverse_transform(y_pred_np.reshape(-1, 1))
 
-    y_pred_dict = {"result": y_pred}
+    y_pred_original = y_pred_original_np.item()
+
+    y_pred_original_dict = {"result": y_pred_original}
 
     res = app.response_class(
-        response=json.dumps(y_pred_dict), status=200, mimetype="application/json"
+        response=json.dumps(y_pred_original_dict), status=200, mimetype="application/json"
     )
 
     return res
