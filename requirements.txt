@@ -59,3 +59,4 @@ typing_extensions
 wcwidth
 zipp
 Flask
+flask-cors
