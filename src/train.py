@@ -365,6 +365,12 @@ def train():
     file_to_write = open("target/models/Miles_per_Gallon_Regressor.pickle", "wb")
     pickle.dump(regressor, file_to_write)
 
+    file_to_write = open("target/models/Miles_per_Gallon_Scaler_X.pickle", "wb")
+    pickle.dump(scaler_X, file_to_write)
+
+    file_to_write = open("target/models/Miles_per_Gallon_Scaler_y.pickle", "wb")
+    pickle.dump(scaler_y, file_to_write)
+
 
 def main():
     train()
